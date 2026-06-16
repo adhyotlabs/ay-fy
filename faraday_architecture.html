@@ -1,0 +1,734 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Faraday Architecture Explorer</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'Segoe UI', sans-serif; background: #0f1117; color: #e2e8f0; min-height: 100vh; }
+
+  header {
+    background: linear-gradient(135deg, #1a1f2e 0%, #232946 100%);
+    padding: 24px 40px;
+    border-bottom: 1px solid #2d3748;
+    display: flex; align-items: center; gap: 16px;
+  }
+  header h1 { font-size: 1.8rem; color: #63b3ed; }
+  header p { color: #a0aec0; font-size: 0.9rem; margin-top: 4px; }
+  .badge { background: #2d3748; color: #68d391; padding: 3px 10px; border-radius: 12px; font-size: 0.75rem; font-weight: 600; }
+
+  .tabs {
+    display: flex; gap: 0; background: #1a1f2e; border-bottom: 1px solid #2d3748; padding: 0 40px;
+  }
+  .tab {
+    padding: 14px 20px; cursor: pointer; color: #718096; font-size: 0.9rem; font-weight: 500;
+    border-bottom: 3px solid transparent; transition: all 0.2s; white-space: nowrap;
+  }
+  .tab:hover { color: #e2e8f0; }
+  .tab.active { color: #63b3ed; border-bottom-color: #63b3ed; }
+
+  .page { display: none; padding: 32px 40px; }
+  .page.active { display: block; }
+
+  /* Architecture diagram */
+  .arch-container { position: relative; }
+  .arch-diagram {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    grid-template-rows: auto auto auto auto;
+    gap: 16px;
+    max-width: 1100px;
+    margin: 0 auto;
+  }
+
+  .layer-label {
+    grid-column: 1 / -1;
+    text-align: center;
+    font-size: 0.7rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 2px;
+    color: #4a5568;
+    padding: 6px 0 2px;
+    border-top: 1px solid #2d3748;
+    margin-top: 8px;
+  }
+  .layer-label:first-child { border-top: none; margin-top: 0; }
+
+  .component {
+    background: #1a1f2e;
+    border: 1px solid #2d3748;
+    border-radius: 10px;
+    padding: 16px;
+    cursor: pointer;
+    transition: all 0.2s;
+    position: relative;
+  }
+  .component:hover { border-color: #4299e1; transform: translateY(-2px); box-shadow: 0 4px 20px rgba(66,153,225,0.15); }
+  .component.selected { border-color: #63b3ed; background: #1a2744; }
+  .component .icon { font-size: 1.8rem; margin-bottom: 8px; }
+  .component h3 { font-size: 0.95rem; color: #e2e8f0; margin-bottom: 4px; }
+  .component p { font-size: 0.78rem; color: #718096; line-height: 1.4; }
+  .component .tech { margin-top: 8px; display: flex; flex-wrap: wrap; gap: 4px; }
+  .tech-tag { background: #2d3748; color: #68d391; padding: 2px 7px; border-radius: 4px; font-size: 0.68rem; }
+  .tech-tag.blue { color: #63b3ed; }
+  .tech-tag.purple { color: #b794f4; }
+  .tech-tag.orange { color: #f6ad55; }
+  .tech-tag.red { color: #fc8181; }
+
+  /* Arrow connector visual */
+  .arrows {
+    grid-column: 1 / -1;
+    display: flex; justify-content: center; align-items: center; gap: 8px;
+    color: #4a5568; font-size: 1.2rem; padding: 4px 0;
+  }
+  .arrow-label { font-size: 0.7rem; color: #4a5568; }
+
+  /* Detail panel */
+  .detail-panel {
+    background: #1a1f2e; border: 1px solid #2d3748; border-radius: 12px;
+    padding: 24px; margin-top: 24px; max-width: 1100px; margin-left: auto; margin-right: auto;
+    min-height: 120px;
+  }
+  .detail-panel h2 { color: #63b3ed; margin-bottom: 12px; font-size: 1.1rem; }
+  .detail-panel .detail-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+  .detail-section h4 { color: #a0aec0; font-size: 0.78rem; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 8px; }
+  .detail-section ul { list-style: none; }
+  .detail-section li { font-size: 0.85rem; color: #cbd5e0; padding: 3px 0; padding-left: 16px; position: relative; }
+  .detail-section li::before { content: "→"; position: absolute; left: 0; color: #4299e1; }
+  .placeholder { color: #4a5568; font-style: italic; font-size: 0.9rem; }
+
+  /* Flow diagram */
+  .flow { max-width: 900px; margin: 0 auto; }
+  .flow-step {
+    display: flex; align-items: flex-start; gap: 16px;
+    background: #1a1f2e; border: 1px solid #2d3748; border-radius: 10px;
+    padding: 16px 20px; margin-bottom: 8px; cursor: pointer; transition: all 0.2s;
+  }
+  .flow-step:hover { border-color: #4299e1; }
+  .flow-step.expanded { border-color: #63b3ed; background: #1a2744; }
+  .step-num {
+    width: 32px; height: 32px; border-radius: 50%; background: #2d3748;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 0.8rem; font-weight: 700; color: #63b3ed; flex-shrink: 0; margin-top: 2px;
+  }
+  .step-content h3 { font-size: 0.95rem; color: #e2e8f0; }
+  .step-content p { font-size: 0.82rem; color: #718096; margin-top: 4px; }
+  .step-detail { display: none; margin-top: 10px; padding: 12px; background: #0f1117; border-radius: 6px; font-size: 0.82rem; color: #a0aec0; line-height: 1.6; }
+  .step-detail.show { display: block; }
+  .flow-connector { text-align: center; color: #4a5568; font-size: 1rem; margin: 2px 0; }
+
+  /* Modules grid */
+  .modules-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 16px; }
+  .module-card {
+    background: #1a1f2e; border: 1px solid #2d3748; border-radius: 10px; padding: 20px;
+    transition: all 0.2s; cursor: pointer;
+  }
+  .module-card:hover { border-color: #4299e1; transform: translateY(-2px); }
+  .module-card h3 { color: #e2e8f0; font-size: 0.95rem; margin-bottom: 6px; }
+  .module-card .path { font-family: monospace; font-size: 0.72rem; color: #4a5568; margin-bottom: 10px; }
+  .module-card p { font-size: 0.82rem; color: #718096; line-height: 1.5; }
+  .module-card .files { margin-top: 12px; }
+  .module-card .files span { display: block; font-family: monospace; font-size: 0.72rem; color: #a0aec0; padding: 2px 0; }
+  .module-section-title { font-size: 0.75rem; font-weight: 700; text-transform: uppercase; letter-spacing: 2px; color: #4a5568; margin: 24px 0 12px; }
+
+  /* QA Testing section */
+  .qa-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+  .qa-card {
+    background: #1a1f2e; border: 1px solid #2d3748; border-radius: 10px; padding: 20px;
+  }
+  .qa-card h3 { color: #e2e8f0; margin-bottom: 8px; font-size: 0.95rem; display: flex; align-items: center; gap: 8px; }
+  .qa-card ul { list-style: none; }
+  .qa-card li { font-size: 0.82rem; color: #a0aec0; padding: 5px 0; border-bottom: 1px solid #2d3748; }
+  .qa-card li:last-child { border-bottom: none; }
+  .qa-card li .endpoint { font-family: monospace; font-size: 0.75rem; color: #68d391; }
+  .qa-card li .method { font-size: 0.7rem; padding: 1px 5px; border-radius: 3px; font-weight: 700; margin-right: 6px; }
+  .method.get { background: #1a4731; color: #68d391; }
+  .method.post { background: #1a3a4f; color: #63b3ed; }
+  .method.put { background: #3d2a00; color: #f6ad55; }
+  .method.delete { background: #3d1a1a; color: #fc8181; }
+
+  .section-intro { max-width: 800px; margin: 0 auto 24px; text-align: center; color: #718096; font-size: 0.9rem; line-height: 1.6; }
+  h2.section-title { text-align: center; color: #63b3ed; margin-bottom: 8px; font-size: 1.2rem; }
+</style>
+</head>
+<body>
+
+<header>
+  <div>
+    <h1>🔍 Faraday Architecture Explorer</h1>
+    <p>Vulnerability Management Platform — Components, Data Flow & QA Surface</p>
+  </div>
+  <span class="badge">ay-fy fork</span>
+</header>
+
+<div class="tabs">
+  <div class="tab active" onclick="showPage('architecture')">Architecture</div>
+  <div class="tab" onclick="showPage('dataflow')">Data Flow</div>
+  <div class="tab" onclick="showPage('modules')">Code Modules</div>
+  <div class="tab" onclick="showPage('qa')">QA Surface</div>
+</div>
+
+<!-- ARCHITECTURE PAGE -->
+<div id="page-architecture" class="page active">
+  <h2 class="section-title">System Architecture</h2>
+  <p class="section-intro">Click any component to learn more. Faraday is a multi-tier system: browser clients talk to a Flask API, which stores data in Postgres and delegates async work via a message queue.</p>
+
+  <div class="arch-diagram">
+
+    <div class="layer-label">CLIENT LAYER</div>
+
+    <div class="component" onclick="showDetail('browser')">
+      <div class="icon">🌐</div>
+      <h3>Browser UI (Vue.js)</h3>
+      <p>Single-page app for managing workspaces, assets, vulns, and running agents</p>
+      <div class="tech"><span class="tech-tag blue">Vue.js</span><span class="tech-tag">REST API</span><span class="tech-tag">WebSocket</span></div>
+    </div>
+
+    <div class="component" onclick="showDetail('cli')">
+      <div class="icon">💻</div>
+      <h3>faraday-cli</h3>
+      <p>Command-line client for scripting: import reports, list workspaces, manage vulns</p>
+      <div class="tech"><span class="tech-tag">Python</span><span class="tech-tag blue">REST API</span></div>
+    </div>
+
+    <div class="component" onclick="showDetail('agent')">
+      <div class="icon">🤖</div>
+      <h3>Agent Dispatcher</h3>
+      <p>faraday-dispatcher — connects via WebSocket, runs scan executors (nmap, nuclei…) on trigger</p>
+      <div class="tech"><span class="tech-tag purple">WebSocket</span><span class="tech-tag">python-socketio</span></div>
+    </div>
+
+    <div class="arrows">
+      <span>↕</span><span class="arrow-label">HTTP/REST + WebSocket</span><span>↕</span>
+    </div>
+
+    <div class="layer-label">API / APPLICATION LAYER</div>
+
+    <div class="component" onclick="showDetail('flask')">
+      <div class="icon">🐍</div>
+      <h3>Flask Server</h3>
+      <p>Core API server using gevent for async I/O. Handles auth, routing, and all CRUD operations</p>
+      <div class="tech"><span class="tech-tag orange">Flask</span><span class="tech-tag">gevent</span><span class="tech-tag">flask-restless</span></div>
+    </div>
+
+    <div class="component" onclick="showDetail('socketio')">
+      <div class="icon">⚡</div>
+      <h3>SocketIO / Dispatcher NS</h3>
+      <p>Real-time WebSocket layer for agent communication, live updates, and scan execution triggers</p>
+      <div class="tech"><span class="tech-tag purple">flask-socketio</span><span class="tech-tag">/dispatcher namespace</span></div>
+    </div>
+
+    <div class="component" onclick="showDetail('auth')">
+      <div class="icon">🔐</div>
+      <h3>Auth & RBAC</h3>
+      <p>Session auth for users, JWT-style agent tokens (TOTP), workspace-level permissions</p>
+      <div class="tech"><span class="tech-tag red">TOTP</span><span class="tech-tag">flask-login</span><span class="tech-tag">LDAP opt.</span></div>
+    </div>
+
+    <div class="arrows">
+      <span>↕</span><span class="arrow-label">SQLAlchemy ORM</span><span>↕</span>
+    </div>
+
+    <div class="layer-label">DATA & ASYNC LAYER</div>
+
+    <div class="component" onclick="showDetail('postgres')">
+      <div class="icon">🐘</div>
+      <h3>PostgreSQL</h3>
+      <p>Primary data store for all entities: workspaces, hosts, services, vulns, commands, users</p>
+      <div class="tech"><span class="tech-tag blue">PostgreSQL 12+</span><span class="tech-tag">psycopg2</span><span class="tech-tag">Alembic</span></div>
+    </div>
+
+    <div class="component" onclick="showDetail('redis')">
+      <div class="icon">🔴</div>
+      <h3>Redis</h3>
+      <p>Celery broker &amp; backend (optional). Also used for session caching and real-time pub/sub</p>
+      <div class="tech"><span class="tech-tag red">Redis</span><span class="tech-tag">Celery broker</span></div>
+    </div>
+
+    <div class="component" onclick="showDetail('reports')">
+      <div class="icon">📋</div>
+      <h3>Reports Processor</h3>
+      <p>Background greenlet (or Celery worker) that reads scan JSON files and bulk-creates DB objects</p>
+      <div class="tech"><span class="tech-tag orange">gevent greenlet</span><span class="tech-tag">bulk_create</span></div>
+    </div>
+
+    <div class="layer-label">PLUGIN / IMPORT LAYER</div>
+
+    <div class="component" onclick="showDetail('plugins')">
+      <div class="icon">🔌</div>
+      <h3>faraday-plugins</h3>
+      <p>Parser library for 80+ tool outputs: nmap, burp, nessus, openvas, nuclei, metasploit…</p>
+      <div class="tech"><span class="tech-tag">Python</span><span class="tech-tag blue">80+ parsers</span></div>
+    </div>
+
+    <div class="component" onclick="showDetail('bulkcreate')">
+      <div class="icon">📦</div>
+      <h3>Bulk Create API</h3>
+      <p>POST /_api/v3/ws/{ws}/bulk_create — accepts structured JSON of hosts/services/vulns in one call</p>
+      <div class="tech"><span class="tech-tag green">JSON API</span><span class="tech-tag orange">Marshmallow</span></div>
+    </div>
+
+    <div class="component" onclick="showDetail('storage')">
+      <div class="icon">📁</div>
+      <h3>File Storage</h3>
+      <p>~/.faraday/uploaded_reports/ — temp JSON files from scan output, processed then deleted</p>
+      <div class="tech"><span class="tech-tag">Local filesystem</span></div>
+    </div>
+
+  </div>
+
+  <div class="detail-panel" id="detail-panel">
+    <p class="placeholder">← Click a component above to see details</p>
+  </div>
+</div>
+
+<!-- DATA FLOW PAGE -->
+<div id="page-dataflow" class="page">
+  <h2 class="section-title">NmapRunner Scan — End to End Data Flow</h2>
+  <p class="section-intro">Trace exactly what happens from clicking "Run" in the UI to seeing assets appear in the workspace.</p>
+
+  <div class="flow">
+
+    <div class="flow-step" onclick="toggleStep(this)">
+      <div class="step-num">1</div>
+      <div class="step-content">
+        <h3>User triggers scan in Browser UI</h3>
+        <p>Selects NmapRunner executor, sets TARGET=["192.168.1.1"], clicks Run</p>
+        <div class="step-detail">
+          Vue.js emits a WebSocket event to the <code>/dispatcher</code> Socket.IO namespace.<br><br>
+          Payload: <code>{"action":"RUN","executor":"nmap","args":{"TARGET":["192.168.1.1"]},"workspaces":["test"],"execution_ids":[13]}</code><br><br>
+          The server forwards this to the connected agent dispatcher process via the same namespace.
+        </div>
+      </div>
+    </div>
+    <div class="flow-connector">↓</div>
+
+    <div class="flow-step" onclick="toggleStep(this)">
+      <div class="step-num">2</div>
+      <div class="step-content">
+        <h3>faraday-dispatcher receives run command</h3>
+        <p>dispatcher_io.py → on_run() → check_cmds() → create_process()</p>
+        <div class="step-detail">
+          <b>check_cmds():</b> runs <code>nmap --version</code> to verify nmap is installed.<br><br>
+          <b>create_process():</b> builds command from executor config:<br>
+          <code>repo_executor: nmap.py</code> → resolves to <code>/path/to/.venv/bin/python3 /path/to/nmap.py</code><br><br>
+          Sets env vars: <code>EXECUTOR_CONFIG_TARGET='["192.168.1.1"]'</code>, <code>PATH=...</code><br><br>
+          Spawns subprocess via <code>asyncio.create_subprocess_shell()</code>
+        </div>
+      </div>
+    </div>
+    <div class="flow-connector">↓</div>
+
+    <div class="flow-step" onclick="toggleStep(this)">
+      <div class="step-num">3</div>
+      <div class="step-content">
+        <h3>nmap.py executor runs nmap + parses output</h3>
+        <p>Calls nmap binary, parses XML with NmapPlugin, outputs JSON to stdout</p>
+        <div class="step-detail">
+          <b>nmap.py</b> in <code>faraday_agent_dispatcher/static/executors/official/</code>:<br><br>
+          1. Reads <code>EXECUTOR_CONFIG_TARGET</code> env var<br>
+          2. Builds nmap command: <code>nmap -oX - -- 192.168.1.1</code><br>
+          3. Runs via <code>subprocess.run()</code><br>
+          4. Parses XML output with <code>NmapPlugin</code> from faraday-plugins<br>
+          5. Prints JSON to stdout: <code>{"hosts":[{"ip":...,"services":[...]}],"command":{...}}</code>
+        </div>
+      </div>
+    </div>
+    <div class="flow-connector">↓</div>
+
+    <div class="flow-step" onclick="toggleStep(this)">
+      <div class="step-num">4</div>
+      <div class="step-content">
+        <h3>Dispatcher sends JSON to Faraday bulk_create API</h3>
+        <p>StdOutLineProcessor reads stdout line → POST /_api/v3/ws/test/bulk_create</p>
+        <div class="step-detail">
+          <b>executor_helper.py StdOutLineProcessor.processing():</b><br><br>
+          Reads each JSON line from nmap.py stdout, adds <code>execution_id</code>, POSTs to:<br>
+          <code>POST http://localhost:5985/_api/v3/ws/test/bulk_create</code><br>
+          Header: <code>Authorization: Agent &lt;agent_token&gt;</code><br><br>
+          Then <b>end_f()</b> sends a closing empty-hosts payload to mark command complete.
+        </div>
+      </div>
+    </div>
+    <div class="flow-connector">↓</div>
+
+    <div class="flow-step" onclick="toggleStep(this)">
+      <div class="step-num">5</div>
+      <div class="step-content">
+        <h3>bulk_create API saves JSON to disk, queues for processing</h3>
+        <p>bulk_create.py → writes temp file → REPORTS_QUEUE.put()</p>
+        <div class="step-detail">
+          <b>bulk_create.py BulkCreateView.post():</b><br><br>
+          1. Validates JSON schema with Marshmallow (BulkCreateSchema)<br>
+          2. Writes to <code>~/.faraday/uploaded_reports/&lt;random&gt;.json</code><br>
+          3. Puts <code>(workspace_name, command_id, file_path, None, user_id, False, False, None, None, None, None, None)</code> into <code>REPORTS_QUEUE</code><br>
+          4. Returns HTTP 201 immediately
+        </div>
+      </div>
+    </div>
+    <div class="flow-connector">↓</div>
+
+    <div class="flow-step" onclick="toggleStep(this)">
+      <div class="step-num">6</div>
+      <div class="step-content">
+        <h3>Background greenlet processes the report</h3>
+        <p>reports_manager_background_task() → process_report() → bulk_create() → _create_host()</p>
+        <div class="step-detail">
+          <b>reports_processor.py reports_manager_background_task():</b><br><br>
+          Runs as a gevent greenlet inside the Flask server process (started at server boot).<br><br>
+          Picks up items from REPORTS_QUEUE every 0.5s → calls <code>process_report()</code><br>
+          → reads JSON file → calls <code>send_report_data()</code><br>
+          → calls <code>bulk_create(ws, command, data, data_already_deserialized=True)</code><br>
+          → calls <code>_create_host()</code> for each host → commits to PostgreSQL<br>
+          → deletes temp file
+        </div>
+      </div>
+    </div>
+    <div class="flow-connector">↓</div>
+
+    <div class="flow-step" onclick="toggleStep(this)">
+      <div class="step-num">7</div>
+      <div class="step-content">
+        <h3>Assets appear in the workspace UI</h3>
+        <p>Host + Services committed to DB → UI polls/refreshes → Assets tab shows results</p>
+        <div class="step-detail">
+          PostgreSQL now has:<br>
+          • <b>hosts</b> table: new row for 192.168.1.1<br>
+          • <b>services</b> table: rows for each open port (http:80, postgres:5432…)<br>
+          • <b>commands</b> table: audit trail of the scan run<br><br>
+          The Vue.js UI refreshes the workspace view and shows the new asset with services.
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<!-- MODULES PAGE -->
+<div id="page-modules" class="page">
+  <h2 class="section-title">Code Module Map</h2>
+  <p class="section-intro">Key directories and files in the Faraday codebase. All paths relative to the repo root.</p>
+
+  <div class="module-section-title">Core Server</div>
+  <div class="modules-grid">
+
+    <div class="module-card">
+      <h3>🖥️ Flask Application</h3>
+      <div class="path">faraday/server/app.py</div>
+      <p>App factory, extension registration, routing setup. Starts the reports processor greenlet on boot.</p>
+      <div class="files">
+        <span>app.py — create_app(), register_extensions()</span>
+        <span>start_server.py — entry point, gevent monkey-patch</span>
+        <span>config.py — FaradayServerConfig, reads server.ini</span>
+        <span>extensions.py — socketio, celery instances</span>
+      </div>
+    </div>
+
+    <div class="module-card">
+      <h3>🗄️ Database Models</h3>
+      <div class="path">faraday/server/models.py</div>
+      <p>SQLAlchemy ORM models for all entities. Single large file with all relationships defined.</p>
+      <div class="files">
+        <span>Workspace, Host, Hostname</span>
+        <span>Service, Vulnerability, VulnerabilityWeb</span>
+        <span>Command, CommandObject</span>
+        <span>Agent, Executor, User, Role</span>
+      </div>
+    </div>
+
+    <div class="module-card">
+      <h3>🔌 API Modules</h3>
+      <div class="path">faraday/server/api/modules/</div>
+      <p>REST endpoint handlers — one file per resource. Inherit from base classes for CRUD.</p>
+      <div class="files">
+        <span>bulk_create.py — main scan import endpoint</span>
+        <span>host.py, service.py, vulnerability.py</span>
+        <span>workspace.py, agent.py, agent_auth_token.py</span>
+        <span>upload_reports.py — manual file upload</span>
+      </div>
+    </div>
+
+    <div class="module-card">
+      <h3>📋 Reports Processor</h3>
+      <div class="path">faraday/server/utils/reports_processor.py</div>
+      <p>Background greenlet and process_report() function. Reads scan JSON files from the queue and creates DB objects.</p>
+      <div class="files">
+        <span>REPORTS_QUEUE — in-process queue</span>
+        <span>reports_manager_background_task()</span>
+        <span>process_report() — file → DB</span>
+        <span>send_report_data() — calls bulk_create</span>
+      </div>
+    </div>
+
+    <div class="module-card">
+      <h3>⚡ WebSocket / Agents</h3>
+      <div class="path">faraday/server/websockets/</div>
+      <p>Socket.IO namespaces for real-time communication between agents and the server.</p>
+      <div class="files">
+        <span>dispatcher.py — /dispatcher namespace</span>
+        <span>workspace.py — live workspace updates</span>
+        <span>websocket_auth.py — token validation</span>
+      </div>
+    </div>
+
+    <div class="module-card">
+      <h3>🗃️ DB Migrations</h3>
+      <div class="path">faraday/migrations/</div>
+      <p>Alembic migration scripts for schema evolution. Run via faraday-manage initdb / migrate.</p>
+      <div class="files">
+        <span>versions/ — migration scripts</span>
+        <span>env.py — migration environment</span>
+        <span>faraday-manage initdb — run migrations</span>
+      </div>
+    </div>
+
+  </div>
+
+  <div class="module-section-title">Agent / Dispatcher (separate package)</div>
+  <div class="modules-grid">
+
+    <div class="module-card">
+      <h3>🤖 Dispatcher Core</h3>
+      <div class="path">.venv/lib/.../faraday_agent_dispatcher/</div>
+      <p>The faraday-agent-dispatcher package. Separate from the server — connects via WebSocket.</p>
+      <div class="files">
+        <span>dispatcher_io.py — WebSocket client, on_run()</span>
+        <span>executor.py — Executor class, cmd resolution</span>
+        <span>executor_helper.py — stdout/stderr processors</span>
+        <span>config → ~/.faraday/config/dispatcher.yaml</span>
+      </div>
+    </div>
+
+    <div class="module-card">
+      <h3>🔧 Official Executors</h3>
+      <div class="path">.venv/lib/.../static/executors/official/</div>
+      <p>Python scripts that wrap external security tools. Each reads env vars, runs the tool, outputs JSON.</p>
+      <div class="files">
+        <span>nmap.py — network scanner</span>
+        <span>nuclei.py — vulnerability scanner</span>
+        <span>wpscan.py — WordPress scanner</span>
+        <span>nikto2.py — web server scanner</span>
+      </div>
+    </div>
+
+    <div class="module-card">
+      <h3>🔌 faraday-plugins</h3>
+      <div class="path">.venv/lib/.../faraday_plugins/</div>
+      <p>Parser library — converts raw tool output (XML, JSON, text) into Faraday's standard JSON format.</p>
+      <div class="files">
+        <span>plugins/repo/nmap/ — nmap XML parser</span>
+        <span>plugins/repo/burp/ — Burp Suite parser</span>
+        <span>plugins/repo/nessus/ — Nessus parser</span>
+        <span>80+ tool parsers total</span>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<!-- QA SURFACE PAGE -->
+<div id="page-qa" class="page">
+  <h2 class="section-title">QA Testing Surface</h2>
+  <p class="section-intro">Faraday as an Application Under Test. Key API endpoints, test types, and attack surface for each module.</p>
+
+  <div class="qa-grid">
+
+    <div class="qa-card">
+      <h3>🔐 Authentication APIs</h3>
+      <ul>
+        <li><span class="method post">POST</span><span class="endpoint">/_api/login</span> — session login (email+password)</li>
+        <li><span class="method post">POST</span><span class="endpoint">/_api/logout</span> — session end</li>
+        <li><span class="method get">GET</span><span class="endpoint">/_api/v3/agent_token</span> — get TOTP for agent registration</li>
+        <li><span class="method get">GET</span><span class="endpoint">/_api/session</span> — current user info</li>
+        <li>Test: brute force lockout, TOTP replay, session fixation, token expiry</li>
+      </ul>
+    </div>
+
+    <div class="qa-card">
+      <h3>🏢 Workspace APIs</h3>
+      <ul>
+        <li><span class="method get">GET</span><span class="endpoint">/_api/v3/ws/</span> — list all workspaces</li>
+        <li><span class="method post">POST</span><span class="endpoint">/_api/v3/ws/</span> — create workspace</li>
+        <li><span class="method put">PUT</span><span class="endpoint">/_api/v3/ws/{name}</span> — update workspace</li>
+        <li><span class="method delete">DEL</span><span class="endpoint">/_api/v3/ws/{name}</span> — delete workspace</li>
+        <li>Test: tenant isolation, cross-workspace data leakage, auth bypass</li>
+      </ul>
+    </div>
+
+    <div class="qa-card">
+      <h3>🖥️ Host / Asset APIs</h3>
+      <ul>
+        <li><span class="method get">GET</span><span class="endpoint">/_api/v3/ws/{ws}/hosts</span> — list hosts (paginated)</li>
+        <li><span class="method post">POST</span><span class="endpoint">/_api/v3/ws/{ws}/hosts</span> — create host</li>
+        <li><span class="method get">GET</span><span class="endpoint">/_api/v3/ws/{ws}/hosts/{id}</span> — host detail</li>
+        <li><span class="method delete">DEL</span><span class="endpoint">/_api/v3/ws/{ws}/hosts/{id}</span> — delete host</li>
+        <li>Test: IDOR (host_id from another workspace), mass assignment, filter injection</li>
+      </ul>
+    </div>
+
+    <div class="qa-card">
+      <h3>🚨 Vulnerability APIs</h3>
+      <ul>
+        <li><span class="method get">GET</span><span class="endpoint">/_api/v3/ws/{ws}/vulns</span> — list vulns</li>
+        <li><span class="method post">POST</span><span class="endpoint">/_api/v3/ws/{ws}/vulns</span> — create vuln</li>
+        <li><span class="method put">PUT</span><span class="endpoint">/_api/v3/ws/{ws}/vulns/{id}</span> — update (status, severity)</li>
+        <li><span class="method get">GET</span><span class="endpoint">/_api/v3/ws/{ws}/vulns?severity=critical</span> — filter</li>
+        <li>Test: XSS in description/name, SQL injection in filters, bulk delete safety</li>
+      </ul>
+    </div>
+
+    <div class="qa-card">
+      <h3>📦 Bulk Create (key endpoint)</h3>
+      <ul>
+        <li><span class="method post">POST</span><span class="endpoint">/_api/v3/ws/{ws}/bulk_create</span></li>
+        <li>Body: <code>{"hosts":[...],"command":{...},"execution_id":N}</code></li>
+        <li>Auth: <code>Authorization: Agent &lt;token&gt;</code></li>
+        <li>Test: large payloads (DoS), malformed JSON, deeply nested objects, duplicate hosts, boundary values on ports</li>
+      </ul>
+    </div>
+
+    <div class="qa-card">
+      <h3>🤖 Agent APIs</h3>
+      <ul>
+        <li><span class="method get">GET</span><span class="endpoint">/_api/v3/agents</span> — list agents</li>
+        <li><span class="method post">POST</span><span class="endpoint">/_api/v3/agents</span> — register agent (needs TOTP)</li>
+        <li><span class="method get">GET</span><span class="endpoint">/_api/v3/agents/{id}/runs</span> — run history</li>
+        <li>WebSocket: <code>ws://localhost:5985/socket.io/?ns=/dispatcher</code></li>
+        <li>Test: expired TOTP reuse, agent impersonation, WebSocket message injection</li>
+      </ul>
+    </div>
+
+    <div class="qa-card">
+      <h3>⚡ Performance / Load Tests</h3>
+      <ul>
+        <li>Bulk create with 1000 hosts / 10000 services in one payload</li>
+        <li>Concurrent workspace access from 50 simultaneous clients</li>
+        <li>Large vulnerability list pagination (limit/offset)</li>
+        <li>Report upload of 100MB nessus XML file</li>
+        <li>WebSocket connection pool exhaustion</li>
+      </ul>
+    </div>
+
+    <div class="qa-card">
+      <h3>🎭 UI / E2E Tests</h3>
+      <ul>
+        <li>Login → create workspace → run NmapRunner → verify assets appear</li>
+        <li>Filter vulnerabilities by severity, status, assignee</li>
+        <li>Export workspace to CSV/XML — verify completeness</li>
+        <li>Multi-user: admin creates workspace, analyst views it</li>
+        <li>Tools: Playwright (via MCP), Selenium, Cypress</li>
+      </ul>
+    </div>
+
+  </div>
+</div>
+
+<script>
+function showPage(id) {
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  document.getElementById('page-' + id).classList.add('active');
+  event.target.classList.add('active');
+}
+
+function toggleStep(el) {
+  const detail = el.querySelector('.step-detail');
+  const wasExpanded = el.classList.contains('expanded');
+  document.querySelectorAll('.flow-step').forEach(s => {
+    s.classList.remove('expanded');
+    s.querySelector('.step-detail').classList.remove('show');
+  });
+  if (!wasExpanded) {
+    el.classList.add('expanded');
+    detail.classList.add('show');
+  }
+}
+
+const details = {
+  browser: {
+    title: '🌐 Browser UI (Vue.js)',
+    what: ['Single-page application served from /static/', 'Communicates with REST API for data', 'Uses Socket.IO for live agent status and scan updates', 'Workspace selector, asset views, vuln management, reporting'],
+    files: ['faraday/static/ — compiled Vue.js build', 'Built from separate faraday-client repository', 'Served directly by Flask on GET /']
+  },
+  cli: {
+    title: '💻 faraday-cli',
+    what: ['Separate Python package: pip install faraday-cli', 'faraday-cli auth — login and store token', 'faraday-cli tool report <file> — import scan output', 'faraday-cli vuln list — list vulnerabilities'],
+    files: ['Uses same REST API as browser', 'faraday-cli github: infobyte/faraday-client', 'Good for scripting and CI/CD integration']
+  },
+  agent: {
+    title: '🤖 Agent Dispatcher',
+    what: ['faraday-dispatcher — separate Python package', 'Connects to server via WebSocket (/dispatcher namespace)', 'Registers with one-time TOTP token (60s expiry)', 'Waits for RUN commands, executes configured executors', 'Streams stdout back as JSON to bulk_create'],
+    files: ['~/.faraday/config/dispatcher.yaml — agent config', 'Key fix: repo_executor must include .py extension', 'Agent token stored in dispatcher.yaml after registration']
+  },
+  flask: {
+    title: '🐍 Flask Server',
+    what: ['gevent-patched Flask for async request handling', 'RESTful API at /_api/v3/ prefix', 'All views inherit from GenericView (flask-classful)', 'Marshmallow schemas for request/response validation', 'Runs on port 5985 (default)'],
+    files: ['faraday/server/app.py — application factory', 'faraday/server/api/base.py — base view classes', 'faraday/start_server.py — entry point with gevent patch']
+  },
+  socketio: {
+    title: '⚡ SocketIO / Dispatcher Namespace',
+    what: ['Real-time bidirectional communication layer', '/dispatcher namespace handles all agent communication', 'Server pushes RUN events to connected agents', 'Agents push status updates back to server', 'Browser subscribes to live scan status updates'],
+    files: ['faraday/server/websockets/dispatcher.py — namespace handler', 'faraday/server/websockets/workspace.py — workspace events', 'flask-socketio (v5.6.1) requires python-socketio>=5.12.0']
+  },
+  auth: {
+    title: '🔐 Auth & RBAC',
+    what: ['Session-based auth for browser users (flask-login)', 'TOTP registration tokens for agent pairing (pyotp, interval=60s)', 'Long-lived agent tokens after registration', 'Workspace-level permissions (admin, pentester, client roles)', 'Optional LDAP integration in enterprise edition'],
+    files: ['faraday/server/api/modules/auth.py', 'faraday/server/api/modules/agent_auth_token.py', 'TOTP secret: ~/.faraday/config/server.ini → agent_registration_secret']
+  },
+  postgres: {
+    title: '🐘 PostgreSQL',
+    what: ['Primary data store — all business data lives here', 'Managed via SQLAlchemy ORM + Alembic migrations', 'Key tables: hosts, services, vulnerabilities, workspaces, commands, users', 'Schema initialized with: faraday-manage initdb'],
+    files: ['faraday/server/models.py — all ORM models', 'faraday/migrations/ — Alembic migration scripts', 'Connection string in ~/.faraday/config/server.ini']
+  },
+  redis: {
+    title: '🔴 Redis',
+    what: ['Celery message broker — queues background tasks', 'Celery result backend — stores task results', 'NOTE: On macOS, Celery prefork+gevent causes SIGSEGV', 'Workaround: set celery_enabled=false in server.ini (uses in-process greenlet instead)', 'Redis still needs to run even with celery disabled (session cache)'],
+    files: ['Default: redis://127.0.0.1:6379/0', 'Start: brew services start redis', '~/.faraday/config/server.ini → celery_broker_url']
+  },
+  reports: {
+    title: '📋 Reports Processor',
+    what: ['Background greenlet started by Flask server at boot (when celery_enabled=false)', 'Polls REPORTS_QUEUE every 0.5s', 'Reads temp JSON files written by bulk_create endpoint', 'Calls bulk_create() to create hosts/services/vulns in DB', 'Deletes temp file after processing'],
+    files: ['faraday/server/utils/reports_processor.py', 'reports_manager_background_task() — the greenlet', 'process_report() — file reader + DB writer', 'REPORTS_QUEUE — in-process Python Queue']
+  },
+  plugins: {
+    title: '🔌 faraday-plugins',
+    what: ['Separate pip package: faraday-plugins', 'Parses output from 80+ security tools', 'Each plugin reads raw tool output (XML/JSON/text)', 'Outputs standardized Faraday JSON format (hosts→services→vulns)', 'Used by executors (nmap.py) and manual report upload'],
+    files: ['NmapPlugin — parses nmap -oX XML output', 'faraday_plugins/plugins/repo/<tool>/plugin.py', 'github: infobyte/faraday_plugins']
+  },
+  bulkcreate: {
+    title: '📦 Bulk Create API',
+    what: ['Main import endpoint for scan data from agents', 'Accepts full scan result in one POST', 'Validates schema with Marshmallow', 'Saves JSON to temp file → queues for background processing', 'Returns 201 immediately (async processing)'],
+    files: ['faraday/server/api/modules/bulk_create.py', 'POST /_api/v3/ws/{workspace}/bulk_create', 'Auth: Authorization: Agent <token>', 'Key bug fixed: tuple must have 12 elements for REPORTS_QUEUE']
+  },
+  storage: {
+    title: '📁 File Storage',
+    what: ['Temp JSON files from scan results land here', 'Named with random 30-char prefix for uniqueness', 'Background task reads → processes → deletes them', 'Also stores manually uploaded reports (nessus, burp XML etc)'],
+    files: ['~/.faraday/uploaded_reports/*.json', 'Files persist if background task crashes', 'Check this folder if results are missing from UI']
+  }
+};
+
+function showDetail(key) {
+  const d = details[key];
+  if (!d) return;
+  document.querySelectorAll('.component').forEach(c => c.classList.remove('selected'));
+  event.currentTarget.classList.add('selected');
+  const panel = document.getElementById('detail-panel');
+  panel.innerHTML = `
+    <h2>${d.title}</h2>
+    <div class="detail-grid">
+      <div class="detail-section">
+        <h4>What it does</h4>
+        <ul>${d.what.map(w => `<li>${w}</li>`).join('')}</ul>
+      </div>
+      <div class="detail-section">
+        <h4>Key files / notes</h4>
+        <ul>${d.files.map(f => `<li>${f}</li>`).join('')}</ul>
+      </div>
+    </div>
+  `;
+}
+</script>
+</body>
+</html>

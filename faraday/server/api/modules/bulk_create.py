@@ -1260,6 +1260,8 @@ class BulkCreateView(GenericWorkspacedView):
                         False,
                         None,
                         None,
+                        None,
+                        None,
                         None
                     )
                 )
