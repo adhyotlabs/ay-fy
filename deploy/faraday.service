@@ -5,8 +5,8 @@ After=network.target postgresql.service redis-server.service
 [Service]
 User=ubuntu
 WorkingDirectory=/home/ubuntu/ay-fy
-Environment=PATH=/home/ubuntu/ay-fy/faraday_venv/bin:/usr/bin:/bin
-ExecStart=/home/ubuntu/ay-fy/faraday_venv/bin/faraday-server
+Environment=PATH=/home/ubuntu/ay-fy/.venv/bin:/usr/bin:/bin
+ExecStart=/home/ubuntu/ay-fy/.venv/bin/faraday-server
 Restart=on-failure
 RestartSec=5
 

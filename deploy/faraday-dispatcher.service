@@ -1,0 +1,14 @@
+[Unit]
+Description=Faraday Agent Dispatcher
+After=network.target faraday.service
+
+[Service]
+User=ubuntu
+WorkingDirectory=/home/ubuntu/ay-fy
+Environment=PATH=/home/ubuntu/ay-fy/.venv-dispatcher/bin:/usr/bin:/bin
+ExecStart=/home/ubuntu/ay-fy/.venv-dispatcher/bin/faraday-dispatcher run
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
