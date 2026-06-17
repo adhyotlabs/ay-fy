@@ -1,0 +1,26 @@
+[faraday_server]
+port = 5985
+bind_address = localhost
+debug = false
+session_timeout = 12
+api_token_expiration = 43200
+secret_key = <generate with: python3 -c "import secrets; print(secrets.token_urlsafe(20))">
+agent_registration_secret = <generate with: python3 -c "import pyotp; print(pyotp.random_base32())">
+
+# Disable Celery and use the in-process reports processor greenlet instead.
+# On macOS: required — Celery prefork pool crashes with SIGSEGV due to
+#           gevent + fork() incompatibility.
+# On Linux: optional — if you don't want to run a separate faraday-worker
+#           process, set this to false and the server handles reports inline.
+# On Linux with Celery: remove this line (defaults to true) and run:
+#   faraday-worker-gevent  (in a separate process or systemd service)
+celery_enabled = false
+
+[logger]
+use_rfc5424_formatter = false
+
+[storage]
+path = /home/ubuntu/.faraday/storage
+
+[database]
+connection_string = postgresql+psycopg2://<user>:<password>@localhost/faraday
